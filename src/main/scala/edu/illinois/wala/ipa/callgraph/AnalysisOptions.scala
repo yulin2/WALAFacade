@@ -13,26 +13,13 @@ import com.ibm.wala.classLoader.ClassLoaderFactoryImpl
 import com.ibm.wala.classLoader.ClassLoaderFactory
 import com.ibm.wala.types.ClassLoaderReference
 import com.typesafe.config.ConfigList
+import com.ibm.wala.ipa.cha.IClassHierarchy
 
 class AnalysisOptions(scope: AnalysisScope, entrypoints: java.lang.Iterable[Entrypoint], val cha: ClassHierarchy, val isSourceAnalysis: Boolean)
   extends com.ibm.wala.ipa.callgraph.AnalysisOptions(scope, entrypoints) {
 }
 
 object AnalysisOptions {
-
-  implicit class RichConfig(c: Config) {
-    def getListOption(path: String): Option[ConfigList] =
-      if (c.hasPath(path))
-        Some(c.getList(path))
-      else
-        None
-
-    def getStringOption(path: String): Option[String] =
-      if (c.hasPath(path))
-        Some(c.getString(path))
-      else
-        None
-  }
 
   // TODO: replace below to use the above class
 
@@ -41,29 +28,7 @@ object AnalysisOptions {
     extraDependencies: Iterable[Dependency])(
       implicit config: Config): AnalysisOptions = {
 
-    val binDep = if (config.hasPath("wala.dependencies.binary"))
-      config.getList("wala.dependencies.binary") map { d => Dependency(d.unwrapped.asInstanceOf[String]) }
-    else
-      List()
-
-    val srcDep = if (config.hasPath("wala.dependencies.source"))
-      config.getList("wala.dependencies.source") map { d => Dependency(d.unwrapped.asInstanceOf[String], DependencyNature.SourceDirectory) }
-    else
-      List()
-
-    val jarDep = if (config.hasPath("wala.dependencies.jar"))
-      config.getList("wala.dependencies.jar") map { d => Dependency(d.unwrapped.asInstanceOf[String], DependencyNature.Jar) }
-    else
-      List()
-
-    val dependencies = binDep ++ srcDep ++ jarDep ++ extraDependencies
-
-    val jreLibPath = if (config.hasPath("wala.jre-lib-path"))
-      config.getString("wala.jre-lib-path")
-    else
-      System.getenv().get("JAVA_HOME") + "/jre/lib/rt.jar"
-
-    implicit val scope = new AnalysisScope(jreLibPath, config.getString("wala.exclussions"), dependencies)
+    implicit val scope = AnalysisScope(extraDependencies)
 
     val classLoaderImpl = new ClassLoaderFactoryImpl(scope.getExclusions())
     //      if (!srcDep.isEmpty) 
@@ -72,6 +37,11 @@ object AnalysisOptions {
 
     implicit val cha = ClassHierarchy.make(scope, classLoaderImpl)
 
+    new AnalysisOptions(scope, entrypoints(extraEntrypoints), cha, false) // !srcDep.isEmpty
+  }
+
+  def entrypoints(extraEntrypoints: Iterable[(String, String)] = Seq())(
+    implicit config: Config, cha: ClassHierarchy, scope: AnalysisScope) = {
     val oneEntryPoint =
       if (config.hasPath("wala.entry.class"))
         Some((config.getString("wala.entry.class"), config.getString("wala.entry.method")))
@@ -92,11 +62,11 @@ object AnalysisOptions {
 
     val entrypoints = entryPointsFromPattern ++
       ((extraEntrypoints ++ oneEntryPoint) map { case (klass, method) => makeEntrypoint(klass, method) })
-      
-    if(entrypoints.size == 0)
+
+    if (entrypoints.size == 0)
       System.err.println("WARNING: no entrypoints")
 
-    new AnalysisOptions(scope, entrypoints, cha, !srcDep.isEmpty)
+    entrypoints
   }
 
   // helper apply methods 
