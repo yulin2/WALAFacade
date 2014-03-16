@@ -17,6 +17,7 @@ import com.ibm.wala.ipa.cha.IClassHierarchy
 
 class AnalysisOptions(scope: AnalysisScope, entrypoints: java.lang.Iterable[Entrypoint], val cha: ClassHierarchy, val isSourceAnalysis: Boolean)
   extends com.ibm.wala.ipa.callgraph.AnalysisOptions(scope, entrypoints) {
+  println("async walafacade")
 }
 
 object AnalysisOptions {
